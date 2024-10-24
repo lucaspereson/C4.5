@@ -1,0 +1,6 @@
+YES, NOU
+Hipertenso : SI,NO
+Colesterol : BAJO,MEDIO,ALTO
+Trigliceridos : NORMAL,ELEVADO
+Edad : MENOR-40,ENTRE-40-60,MAYOR-A-60
+Diabetico : SI,NO

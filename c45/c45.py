@@ -1,8 +1,11 @@
 import math
+import csv
+
 class C45:
 
 	"""Creates a decision tree with C4.5 algorithm"""
-	def __init__(self, pathToData,pathToNames):
+	def __init__(self, pathToData,pathToNames, pathToCsv):
+		self.filePathToCsv = pathToCsv
 		self.filePathToData = pathToData
 		self.filePathToNames = pathToNames
 		self.data = []
@@ -11,6 +14,7 @@ class C45:
 		self.attrValues = {}
 		self.attributes = []
 		self.tree = None
+		self.indent = ""
 
 	def fetchData(self):
 		with open(self.filePathToNames, "r") as file:
@@ -23,11 +27,51 @@ class C45:
 				self.attrValues[attribute] = values
 		self.numAttributes = len(self.attrValues.keys())
 		self.attributes = list(self.attrValues.keys())
+		print("attr: ", self.attrValues)
+		print("---------------------------------")
+		print("Attributes:",self.attributes)
+		print("Classes:",self.classes)
+		print("---------------------------------")
+  
 		with open(self.filePathToData, "r") as file:
 			for line in file:
 				row = [x.strip() for x in line.split(",")]
 				if row != [] or row != [""]:
 					self.data.append(row)
+    
+	def fetchDataCSV(self):
+		with open(self.filePathToCsv, "r") as file:
+			reader = csv.reader(file)
+			# Leer la primera fila (nombres de atributos)
+			self.attributes = next(reader)
+			self.attributes.pop()
+			self.numAttributes = len(self.attributes)
+			print("---------------------------------")
+			print("Attributes:", self.attributes)
+			# Leer el resto de los datos
+			for row in reader:
+				if all(element.strip() for element in row):
+					self.data.append(row)
+			
+			# Inferir las clases (última columna)
+			self.classes = list(set([row[-1] for row in self.data]))
+			print("Classes:", self.classes)
+
+			# Inferir los valores posibles de los atributos
+			self.inferAttributeValues()
+			print("Attr Values:", self.attrValues)
+			print("---------------------------------")
+   	
+	def inferAttributeValues(self):
+		for i in range(self.numAttributes):
+			column_values = [row[i] for row in self.data]
+			try:
+				# Intentar convertir todos los valores a float para determinar si es continuo
+				list(map(float, column_values))
+				self.attrValues[self.attributes[i]] = ["continuous"]
+			except ValueError:
+				# Si falla, se considera discreto y se almacenan sus valores únicos
+				self.attrValues[self.attributes[i]] = list(set(column_values))
 
 	def preprocessData(self):
 		for index,row in enumerate(self.data):
@@ -44,9 +88,9 @@ class C45:
 				#discrete
 				for index,child in enumerate(node.children):
 					if child.isLeaf:
-						print(indent + node.label + " = " + attributes[index] + " : " + child.label)
+						print(indent + node.label + " = " + self.attributes[index] + " : " + child.label)
 					else:
-						print(indent + node.label + " = " + attributes[index] + " : ")
+						print(indent + node.label + " = " + self.attributes[index] + " : ")
 						self.printNode(child, indent + "	")
 			else:
 				#numerical
@@ -67,28 +111,53 @@ class C45:
 
 
 	def generateTree(self):
+		print("Generando árbol...")
 		self.tree = self.recursiveGenerateTree(self.data, self.attributes)
 
 	def recursiveGenerateTree(self, curData, curAttributes):
-		allSame = self.allSameClass(curData)
+		self.indent += "-"
+		
 
 		if len(curData) == 0:
 			#Fail
+			print(f"{self.indent} Retorno nodo como etiqueta: Fail")
 			return Node(True, "Fail", None)
-		elif allSame is not False:
-			#return a node with that class
-			return Node(True, allSame, None)
-		elif len(curAttributes) == 0:
-			#return a node with the majority class
-			majClass = self.getMajClass(curData)
-			return Node(True, majClass, None)
 		else:
-			(best,best_threshold,splitted) = self.splitAttribute(curData, curAttributes)
-			remainingAttributes = curAttributes[:]
-			remainingAttributes.remove(best)
-			node = Node(False, best, best_threshold)
-			node.children = [self.recursiveGenerateTree(subset, remainingAttributes) for subset in splitted]
-			return node
+			allSame = self.allSameClass(curData)
+			if allSame is not False:
+				#return a node with that class
+				print(f"{self.indent} Retorno nodo como etiqueta: ",allSame)
+				self.indent = self.indent[:-1]
+				return Node(True, allSame, None)
+			elif len(curAttributes) == 0:
+				#return a node with the majority class
+				majClass = self.getMajClass(curData)
+				print(f"{self.indent} Retorno nodo con etiqueta de mayor clase: ",majClass)
+				self.indent = self.indent[:-1]
+				return Node(True, majClass, None)
+			else:
+				(best,best_threshold,splitted) = self.splitAttribute(curData, curAttributes)
+				print(f"{self.indent} Mejor atributo: ",best)
+				indexAttr = self.attributes.index(best)	
+				remainingAttributes = curAttributes[:]
+				remainingAttributes.remove(best)
+				node = Node(False, best, best_threshold)
+				print(f"{self.indent} Creando nodo en el árbol para: ",best)
+				#print("*** Attr restantes de la rama: ",remainingAttributes)
+				#node.children = [self.recursiveGenerateTree(subset, remainingAttributes) for subset in splitted]
+				node.children = []
+				self.indent += "-"
+				for subset in splitted:	
+					#print(f"{self.indent} Subconjunto: ",subset)
+					if subset != []:
+						if subset[0][indexAttr] != subset[-1][indexAttr]:
+							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]}-{subset[-1][indexAttr]} con {len(subset)} ejemplos.")
+						else:
+							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]} con {len(subset)} ejemplos.")
+					child = self.recursiveGenerateTree(subset, remainingAttributes)
+					node.children.append(child)
+				self.indent = self.indent[:-2]
+				return node
 
 	def getMajClass(self, curData):
 		freq = [0]*len(self.classes)
@@ -119,7 +188,9 @@ class C45:
 		best_attribute = -1
 		#None for discrete attributes, threshold value for continuous attributes
 		best_threshold = None
+		print(f"CurData:", curData)
 		for attribute in curAttributes:
+			print(f"{self.indent} Evaluando Attr:",attribute, " con valores ",self.attrValues[attribute])
 			indexOfAttribute = self.attributes.index(attribute)
 			if self.isAttrDiscrete(attribute):
 				#split curData into n-subsets, where n is the number of 
@@ -127,12 +198,14 @@ class C45:
 				#the max gain
 				valuesForAttribute = self.attrValues[attribute]
 				subsets = [[] for a in valuesForAttribute]
+				#for row in curData:
+				#	print(row)
 				for row in curData:
 					for index in range(len(valuesForAttribute)):
-						if row[i] == valuesForAttribute[index]:
+						if row[indexOfAttribute] == valuesForAttribute[index]:
 							subsets[index].append(row)
 							break
-				e = gain(curData, subsets)
+				e = self.gain(curData, subsets)
 				if e > maxEnt:
 					maxEnt = e
 					splitted = subsets
@@ -159,6 +232,14 @@ class C45:
 							maxEnt = e
 							best_attribute = attribute
 							best_threshold = threshold
+				#Agregado de Lucas para que si existen todos los valores iguales, se calcule igual la ganancia
+				if best_attribute == -1:
+					e = self.gain(curData, [less, greater])
+					if e >= maxEnt:
+						splitted = [curData]
+						maxEnt = e
+						best_attribute = attribute
+						best_threshold = threshold
 		return (best_attribute,best_threshold,splitted)
 
 	def gain(self,unionSet, subsets):
