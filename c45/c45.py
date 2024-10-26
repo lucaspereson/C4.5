@@ -137,21 +137,25 @@ class C45:
 				return Node(True, majClass, None)
 			else:
 				(best,best_threshold,splitted) = self.splitAttribute(curData, curAttributes)
-				print(f"{self.indent} Mejor atributo: ",best)
-				indexAttr = self.attributes.index(best)	
 				remainingAttributes = curAttributes[:]
-				remainingAttributes.remove(best)
+				
 				node = Node(False, best, best_threshold)
-				print(f"{self.indent} Creando nodo en el árbol para: ",best)
-				#print("*** Attr restantes de la rama: ",remainingAttributes)
-				#node.children = [self.recursiveGenerateTree(subset, remainingAttributes) for subset in splitted]
+				if best != -1:
+					remainingAttributes.remove(best)
+					print(f"{self.indent} * Mejor atributo: ",best)
+					print(f"{self.indent} Creando nodo en el árbol para: ",best)
+					indexAttr = self.attributes.index(best)	
 				node.children = []
 				self.indent += "-"
+				indexSplit = 0
 				for subset in splitted:	
-					#print(f"{self.indent} Subconjunto: ",subset)
 					if subset != []:
-						if subset[0][indexAttr] != subset[-1][indexAttr]:
-							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]}-{subset[-1][indexAttr]} con {len(subset)} ejemplos.")
+						if best_threshold is not None:
+							if indexSplit == 0:
+								print(f"{self.indent} Generando rama para subconjunto <={best_threshold} con {len(subset)} ejemplos.")
+								indexSplit += 1
+							else :
+								print(f"{self.indent} Generando rama para subconjunto >{best_threshold} con {len(subset)} ejemplos.")
 						else:
 							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]} con {len(subset)} ejemplos.")
 					child = self.recursiveGenerateTree(subset, remainingAttributes)
@@ -188,7 +192,6 @@ class C45:
 		best_attribute = -1
 		#None for discrete attributes, threshold value for continuous attributes
 		best_threshold = None
-		print(f"CurData:", curData)
 		for attribute in curAttributes:
 			print(f"{self.indent} Evaluando Attr:",attribute, " con valores ",self.attrValues[attribute])
 			indexOfAttribute = self.attributes.index(attribute)
@@ -198,8 +201,6 @@ class C45:
 				#the max gain
 				valuesForAttribute = self.attrValues[attribute]
 				subsets = [[] for a in valuesForAttribute]
-				#for row in curData:
-				#	print(row)
 				for row in curData:
 					for index in range(len(valuesForAttribute)):
 						if row[indexOfAttribute] == valuesForAttribute[index]:
@@ -232,17 +233,9 @@ class C45:
 							maxEnt = e
 							best_attribute = attribute
 							best_threshold = threshold
-				#Agregado de Lucas para que si existen todos los valores iguales, se calcule igual la ganancia
-				if best_attribute == -1:
-					e = self.gain(curData, [less, greater])
-					if e >= maxEnt:
-						splitted = [curData]
-						maxEnt = e
-						best_attribute = attribute
-						best_threshold = threshold
 		return (best_attribute,best_threshold,splitted)
 
-	def gain(self,unionSet, subsets):
+	def gain(self, unionSet, subsets):
 		#input : data and disjoint subsets of it
 		#output : information gain
 		S = len(unionSet)
