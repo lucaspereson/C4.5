@@ -88,9 +88,9 @@ class C45:
 				#discrete
 				for index,child in enumerate(node.children):
 					if child.isLeaf:
-						print(indent + node.label + " = " + self.attributes[index] + " : " + child.label)
+						print(indent + node.label + " = " + self.attrValues[node.label][index] + " : " + child.label)
 					else:
-						print(indent + node.label + " = " + self.attributes[index] + " : ")
+						print(indent + node.label + " = " + self.attrValues[node.label][index] + " : ")
 						self.printNode(child, indent + "	")
 			else:
 				#numerical
@@ -270,6 +270,47 @@ class C45:
 			return 0
 		else:
 			return math.log(x,2)
+
+	def load_test_data(self, path_to_test_csv):
+		self.test_data = []
+		with open(path_to_test_csv, "r") as file:
+			reader = csv.reader(file)
+			next(reader)  # Saltar la fila de cabecera si existe
+			for row in reader:
+				if all(element.strip() for element in row):
+					self.test_data.append(row)
+    
+	def predict(self, instance, node=None):
+		"""Predice la clase de una instancia recorriendo el árbol."""
+		if node is None:
+			node = self.tree
+		if node.isLeaf:
+			return node.label
+		else:
+			attr_index = self.attributes.index(node.label)
+			attr_value = instance[attr_index]
+			if node.threshold is None:
+				# Atributo discreto
+				for i, child in enumerate(node.children):
+					if self.attrValues[node.label][i] == attr_value:
+						return self.predict(instance, child)
+			else:
+				# Atributo continuo
+				if float(attr_value) <= node.threshold:
+					return self.predict(instance, node.children[0])
+				else:
+					return self.predict(instance, node.children[1])
+
+	def calculate_accuracy(self):
+		"""Calcula la precisión del modelo en el conjunto de prueba."""
+		correct_predictions = 0
+		for instance in self.test_data:
+			actual_class = instance[-1]  # Último valor es la clase
+			predicted_class = self.predict(instance)
+			if actual_class == predicted_class:
+				correct_predictions += 1
+		accuracy = correct_predictions / len(self.test_data)
+		return accuracy
 
 class Node:
 	def __init__(self,isLeaf, label, threshold):

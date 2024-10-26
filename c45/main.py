@@ -16,9 +16,18 @@ c2.generateTree()
 c2.printTree()
 """
 
-#c2 = C45(None, None, "D:\IA_C45\C4.5\data\data_cardiovascular_risk.csv")
+
 c2 = C45(None, None, "D:\IA_C45\C4.5\data\data_example.csv")
 c2.fetchDataCSV()
 c2.preprocessData()
 c2.generateTree()
-#c2.printTree()
+c2.printTree()
+
+"""
+c2 = C45(None, None, "D:\IA_C45\C4.5\data\data_cardiovascular_risk_TrainData.csv")
+c2.fetchDataCSV()
+c2.preprocessData()
+c2.generateTree()
+c2.load_test_data("D:\IA_C45\C4.5\data\data_cardiovascular_risk_TestData.csv")
+accuracy = c2.calculate_accuracy()
+print(f"Precisión del modelo en el conjunto de prueba: {accuracy * 100:.2f}%")"""
