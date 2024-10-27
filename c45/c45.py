@@ -1,18 +1,24 @@
 import math
 import csv
+import time
 
 class C45:
 
 	"""Creates a decision tree with C4.5 algorithm"""
-	def __init__(self, pathToCsv):
+	def __init__(self, pathToCsv, gainRatio=False, infoGainThreshold=0.001):
 		self.filePathToCsv = pathToCsv
 		self.data = []
 		self.classes = []
 		self.numAttributes = -1 
 		self.attrValues = {}
 		self.attributes = []
+		self.attributesToRemove = []
 		self.tree = None
 		self.indent = ""
+		self.timeStart = 0
+		self.timeEnd = 0
+		self.infoGainThreshold = infoGainThreshold
+		self.gainRatio = gainRatio
     
 	def fetchDataCSV(self):
 		with open(self.filePathToCsv, "r") as file:
@@ -49,9 +55,24 @@ class C45:
 				self.attrValues[self.attributes[i]] = list(set(column_values))
 
 	def preprocessData(self):
-		for index,row in enumerate(self.data):
+		# Verificar si un atributo tiene valores únicos en cada registro
+		for attr_index in range(self.numAttributes):
+			unique_values = set(row[attr_index] for row in self.data)
+			if len(unique_values) == len(self.data):
+				self.attributesToRemove.append(attr_index)
+
+		# Eliminar los atributos únicos de cada registro y actualizar la lista de atributos
+		for index in sorted(self.attributesToRemove, reverse=True):
+			for row in self.data:
+				del row[index]
+			print(f"Eliminando atributo único: {self.attributes[index]}")
+			del self.attrValues[self.attributes[index]]
+			del self.attributes[index]
+			self.numAttributes -= 1
+		# Convertir valores a float para atributos no discretos
+		for index, row in enumerate(self.data):
 			for attr_index in range(self.numAttributes):
-				if(not self.isAttrDiscrete(self.attributes[attr_index])):
+				if not self.isAttrDiscrete(self.attributes[attr_index]):
 					self.data[index][attr_index] = float(self.data[index][attr_index])
 
 	def printTree(self):
@@ -84,43 +105,47 @@ class C45:
 					self.printNode(rightChild , indent + "	")
 
 	def generateTree(self):
+		self.timeStart = time.time()
 		print("Generando árbol...")
 		self.tree = self.recursiveGenerateTree(self.data, self.attributes)
+		self.timeEnd = time.time()
+		print("Árbol generado en ",self.timeEnd - self.timeStart," segundos.")
 
 	def recursiveGenerateTree(self, curData, curAttributes):
 		self.indent += "-"
 		if len(curData) == 0:
 			#Fail
-			print(f"{self.indent} Retorno nodo como etiqueta: Fail")
+			#print(f"{self.indent} Retorno nodo como etiqueta: Fail")
 			return Node(True, "Fail", None)
 		else:
 			allSame = self.allSameClass(curData)
 			if allSame is not False:
 				#return a node with that class
-				print(f"{self.indent} Retorno nodo como etiqueta: ",allSame)
+				#print(f"{self.indent} Retorno nodo como etiqueta: ",allSame)
 				self.indent = self.indent[:-1]
 				return Node(True, allSame, None)
 			elif len(curAttributes) == 0:
 				#return a node with the majority class
 				majClass = self.getMajClass(curData)
-				print(f"{self.indent} Retorno nodo con etiqueta de mayor clase: ",majClass)
+				#print(f"{self.indent} Retorno nodo con etiqueta de mayor clase: ",majClass)
 				self.indent = self.indent[:-1]
 				return Node(True, majClass, None)
 			else:
 				(best,best_threshold,splitted) = self.splitAttribute(curData, curAttributes)
 				remainingAttributes = curAttributes[:]
-				
 				node = Node(False, best, best_threshold)
-				if best != -1:
+				if best_threshold is None:
 					remainingAttributes.remove(best)
-					print(f"{self.indent} * Mejor atributo: ",best)
-					print(f"{self.indent} Creando nodo en el árbol para: ",best)
+				if best != -1:
+					#print(f"{self.indent} * Mejor atributo: ",best)
+					#print(f"{self.indent} Creando nodo en el árbol para: ",best)
 					indexAttr = self.attributes.index(best)	
 				node.children = []
 				self.indent += "-"
 				indexSplit = 0
 				for subset in splitted:	
-					if subset != []:
+					"""if subset != []:
+						
 						if best_threshold is not None:
 							if indexSplit == 0:
 								print(f"{self.indent} Generando rama para subconjunto <={best_threshold} con {len(subset)} ejemplos.")
@@ -128,7 +153,7 @@ class C45:
 							else :
 								print(f"{self.indent} Generando rama para subconjunto >{best_threshold} con {len(subset)} ejemplos.")
 						else:
-							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]} con {len(subset)} ejemplos.")
+							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]} con {len(subset)} ejemplos.")"""
 					child = self.recursiveGenerateTree(subset, remainingAttributes)
 					node.children.append(child)
 				self.indent = self.indent[:-2]
@@ -158,7 +183,8 @@ class C45:
 
 	def splitAttribute(self, curData, curAttributes):
 		splitted = []
-		maxEnt = -1*float("inf")
+		#minGan = -1*float("inf")
+		minGan = self.infoGainThreshold
 		best_attribute = -1
 		#None for discrete attributes, threshold value for continuous attributes
 		best_threshold = None
@@ -176,9 +202,9 @@ class C45:
 						if row[indexOfAttribute] == valuesForAttribute[index]:
 							subsets[index].append(row)
 							break
-				e = self.gain(curData, subsets)
-				if e > maxEnt:
-					maxEnt = e
+				g = self.gain(curData, subsets)
+				if g > minGan:
+					minGan = g
 					splitted = subsets
 					best_attribute = attribute
 					best_threshold = None
@@ -197,33 +223,46 @@ class C45:
 								greater.append(row)
 							else:
 								less.append(row)
-						e = self.gain(curData, [less, greater])
-						if e >= maxEnt:
+						g = self.gain(curData, [less, greater])
+						if g >= minGan:
 							splitted = [less, greater]
-							maxEnt = e
+							minGan = g
 							best_attribute = attribute
 							best_threshold = threshold
-				if 0 >= maxEnt:
+				if 0 >= minGan:
 					splitted = [curData, []]
-					maxEnt = 0
+					minGan = 0
 					best_attribute = attribute
 					best_threshold = curData[0][indexOfAttribute]
 		return (best_attribute,best_threshold,splitted)
 
 	def gain(self, unionSet, subsets):
-		#input : data and disjoint subsets of it
-		#output : information gain
+		# Entrada: conjunto de datos y subconjuntos disjuntos
+    	# Salida: ganancia de información y tasa de ganancia
 		S = len(unionSet)
-		#calculate impurity before split
+    	
+     	# Calcular la impureza antes de la división
 		impurityBeforeSplit = self.entropy(unionSet)
-		#calculate impurity after split
+    	
+     	# Calcular la impureza después de la división
 		weights = [len(subset)/S for subset in subsets]
 		impurityAfterSplit = 0
 		for i in range(len(subsets)):
 			impurityAfterSplit += weights[i]*self.entropy(subsets[i])
-		#calculate total gain
+		
+  		# Calcular la ganancia de información total
 		totalGain = impurityBeforeSplit - impurityAfterSplit
-		return totalGain
+
+		if self.gainRatio == False:
+			return totalGain
+		
+  		# Calcular la entropía de partición (split info)
+		splitInfo = -sum(weight * math.log2(weight) for weight in weights if weight > 0)
+
+		# Calcular la tasa de ganancia
+		gainRatio = totalGain / splitInfo if splitInfo != 0 else 0
+
+		return gainRatio
 
 	def entropy(self, dataSet):
 		S = len(dataSet)
@@ -254,32 +293,36 @@ class C45:
 			for row in reader:
 				if all(element.strip() for element in row):
 					self.test_data.append(row)
+     
+		for index in sorted(self.attributesToRemove, reverse=True):
+			for row in self.test_data:
+				del row[index]
     
 	def predict(self, instance, node=None):
 		"""Predice la clase de una instancia recorriendo el árbol."""
 		if node is None:
 			node = self.tree
 		if node.isLeaf:
-			print(f" - Predicción para: {instance}, clase: {node.label}")
+			#print(f" - Predicción para: {instance}, clase: {node.label}")
 			return node.label
 		else:
-			print(f"Evaluando instancia: {instance}, para el nodo: {node.label}")
+			#print(f"Evaluando instancia: {instance}, para el nodo: {node.label}")
 			attr_index = self.attributes.index(node.label)
 			attr_value = instance[attr_index]
 			if node.threshold is None:
 				# Atributo discreto
 				for i, child in enumerate(node.children):
 					if self.attrValues[node.label][i] == attr_value:
-						print(f"Nodo encontrado: {node.label} = {attr_value}")
-						print(f"Siguiente nodo: {child.label}")
+						#print(f"Nodo encontrado: {node.label} = {attr_value}")
+						#print(f"Siguiente nodo: {child.label}")
 						return self.predict(instance, child)
 			else:
 				# Atributo continuo
 				if float(attr_value) <= node.threshold:
-					print(f"Nodo encontrado: {node.label} <= {node.threshold}")
+					#print(f"Nodo encontrado: {node.label} <= {node.threshold}")
 					return self.predict(instance, node.children[0])
 				else:
-					print(f"Nodo encontrado: {node.label} > {node.threshold}")
+					#print(f"Nodo encontrado: {node.label} > {node.threshold}")
 					return self.predict(instance, node.children[1])
 
 	def calculate_accuracy(self):
