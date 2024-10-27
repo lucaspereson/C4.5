@@ -4,10 +4,8 @@ import csv
 class C45:
 
 	"""Creates a decision tree with C4.5 algorithm"""
-	def __init__(self, pathToData,pathToNames, pathToCsv):
+	def __init__(self, pathToCsv):
 		self.filePathToCsv = pathToCsv
-		self.filePathToData = pathToData
-		self.filePathToNames = pathToNames
 		self.data = []
 		self.classes = []
 		self.numAttributes = -1 
@@ -15,29 +13,6 @@ class C45:
 		self.attributes = []
 		self.tree = None
 		self.indent = ""
-
-	def fetchData(self):
-		with open(self.filePathToNames, "r") as file:
-			classes = file.readline()
-			self.classes = [x.strip() for x in classes.split(",")]
-			#add attributes
-			for line in file:
-				[attribute, values] = [x.strip() for x in line.split(":")]
-				values = [x.strip() for x in values.split(",")]
-				self.attrValues[attribute] = values
-		self.numAttributes = len(self.attrValues.keys())
-		self.attributes = list(self.attrValues.keys())
-		print("attr: ", self.attrValues)
-		print("---------------------------------")
-		print("Attributes:",self.attributes)
-		print("Classes:",self.classes)
-		print("---------------------------------")
-  
-		with open(self.filePathToData, "r") as file:
-			for line in file:
-				row = [x.strip() for x in line.split(",")]
-				if row != [] or row != [""]:
-					self.data.append(row)
     
 	def fetchDataCSV(self):
 		with open(self.filePathToCsv, "r") as file:
@@ -108,16 +83,12 @@ class C45:
 					print(indent + node.label + " > " + str(node.threshold) + " : ")
 					self.printNode(rightChild , indent + "	")
 
-
-
 	def generateTree(self):
 		print("Generando árbol...")
 		self.tree = self.recursiveGenerateTree(self.data, self.attributes)
 
 	def recursiveGenerateTree(self, curData, curAttributes):
 		self.indent += "-"
-		
-
 		if len(curData) == 0:
 			#Fail
 			print(f"{self.indent} Retorno nodo como etiqueta: Fail")
@@ -171,7 +142,6 @@ class C45:
 		maxInd = freq.index(max(freq))
 		return self.classes[maxInd]
 
-
 	def allSameClass(self, data):
 		for row in data:
 			if row[-1] != data[0][-1]:
@@ -193,7 +163,7 @@ class C45:
 		#None for discrete attributes, threshold value for continuous attributes
 		best_threshold = None
 		for attribute in curAttributes:
-			print(f"{self.indent} Evaluando Attr:",attribute, " con valores ",self.attrValues[attribute])
+			#print(f"{self.indent} Evaluando Attr:",attribute, " con valores ",self.attrValues[attribute])
 			indexOfAttribute = self.attributes.index(attribute)
 			if self.isAttrDiscrete(attribute):
 				#split curData into n-subsets, where n is the number of 
@@ -233,6 +203,11 @@ class C45:
 							maxEnt = e
 							best_attribute = attribute
 							best_threshold = threshold
+				if 0 >= maxEnt:
+					splitted = [curData, []]
+					maxEnt = 0
+					best_attribute = attribute
+					best_threshold = curData[0][indexOfAttribute]
 		return (best_attribute,best_threshold,splitted)
 
 	def gain(self, unionSet, subsets):
@@ -285,20 +260,26 @@ class C45:
 		if node is None:
 			node = self.tree
 		if node.isLeaf:
+			print(f" - Predicción para: {instance}, clase: {node.label}")
 			return node.label
 		else:
+			print(f"Evaluando instancia: {instance}, para el nodo: {node.label}")
 			attr_index = self.attributes.index(node.label)
 			attr_value = instance[attr_index]
 			if node.threshold is None:
 				# Atributo discreto
 				for i, child in enumerate(node.children):
 					if self.attrValues[node.label][i] == attr_value:
+						print(f"Nodo encontrado: {node.label} = {attr_value}")
+						print(f"Siguiente nodo: {child.label}")
 						return self.predict(instance, child)
 			else:
 				# Atributo continuo
 				if float(attr_value) <= node.threshold:
+					print(f"Nodo encontrado: {node.label} <= {node.threshold}")
 					return self.predict(instance, node.children[0])
 				else:
+					print(f"Nodo encontrado: {node.label} > {node.threshold}")
 					return self.predict(instance, node.children[1])
 
 	def calculate_accuracy(self):
