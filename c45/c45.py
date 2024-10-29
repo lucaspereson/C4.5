@@ -138,7 +138,6 @@ class C45:
 				else:
 					#return a node with the majority class
 					majClass = self.getMajClass(curData)
-					self.indent = self.indent[:-1]
 					return Node(True, majClass, None)
 				return node
 
@@ -310,14 +309,26 @@ class C45:
 
 	def calculate_accuracy(self):
 		"""Calcula la precisión del modelo en el conjunto de prueba."""
-		correct_predictions = 0
+		correct_predictions_0 = 0
+		correct_predictions_1 = 0
+		total_instances_0 = 0
+		total_instances_1 = 0
 		for instance in self.test_data:
 			actual_class = instance[-1]  # Último valor es la clase
 			predicted_class = self.predict(instance)
+			if actual_class == "0":
+				total_instances_0 += 1
+			else:
+				total_instances_1 += 1
 			if actual_class == predicted_class:
-				correct_predictions += 1
-		accuracy = correct_predictions / len(self.test_data)
-		return accuracy
+				if actual_class == "0":
+					correct_predictions_0 += 1
+				else:
+					correct_predictions_1 += 1
+		accuracy = (correct_predictions_0+correct_predictions_1) / (total_instances_0+total_instances_1)
+		accuracy_0 = correct_predictions_0 / total_instances_0
+		accuracy_1 = correct_predictions_1 / total_instances_1
+		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1
 
 class Node:
 	def __init__(self,isLeaf, label, threshold):
