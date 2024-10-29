@@ -1,27 +1,34 @@
 import pandas as pd
 from sklearn.model_selection import StratifiedShuffleSplit
 
-# Cargar el archivo CSV
-dataset = pd.read_csv("D:\IA_C45\C4.5\data\data_cardiovascular_risk.csv")
+def set_fit(path, target_column, testSize=0.3):
+    
+    data = pd.read_csv(path)
+    
+    # Columna de referencia para estratificar
+    stratify_column = data[target_column]
 
-# Columna de referencia para estratificar (por ejemplo, la columna 'class')
-# Asegúrate de cambiar 'class' al nombre de tu columna de interés
-stratify_column = dataset["TenYearCHD"]
+    # Configurar el muestreo estratificado
+    split = StratifiedShuffleSplit(n_splits=1, test_size=testSize, random_state=42)
 
-# Configurar el muestreo estratificado
-split = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
+    # Dividir el dataset en 70% para entrenamiento y 30% para prueba
+    for train_index, test_index in split.split(data, stratify_column):
+        train_data = data.iloc[train_index]
+        test_data = data.iloc[test_index]
 
-# Dividir el dataset en 80% para entrenamiento y 20% para prueba
-for train_index, test_index in split.split(dataset, stratify_column):
-    train_data = dataset.iloc[train_index]
-    test_data = dataset.iloc[test_index]
+    # Guardar la muestra en un nuevo archivo CSV si lo deseas
+    path = path.replace(".csv", "")
+    pathTrain = path+"_TrainData.csv"
+    pathTest = path+"_TestData.csv"
+    train_data.to_csv(pathTrain, index=False)
+    test_data.to_csv(pathTest, index=False)
 
-# Guardar la muestra en un nuevo archivo CSV si lo deseas
-train_data.to_csv("D:\IA_C45\C4.5\data\data_cardiovascular_risk_TrainData.csv", index=False)
-test_data.to_csv("D:\IA_C45\C4.5\data\data_cardiovascular_risk_TestData.csv", index=False)
+    # Verificar la distribución en cada subconjunto
+    print("Distribución en el conjunto de entrenamiento:")
+    print(train_data['TenYearCHD'].value_counts(normalize=True))
+    print("\nDistribución en el conjunto de prueba:")
+    print(test_data['TenYearCHD'].value_counts(normalize=True))
+    
+    return pathTrain, pathTest
 
-# Verificar la distribución en cada subconjunto
-print("Distribución en el conjunto de entrenamiento:")
-print(train_data['TenYearCHD'].value_counts(normalize=True))
-print("\nDistribución en el conjunto de prueba:")
-print(test_data['TenYearCHD'].value_counts(normalize=True))
+

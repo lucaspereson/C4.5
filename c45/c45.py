@@ -1,6 +1,9 @@
 import math
 import csv
 import time
+from sklearn.metrics import confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 class C45:
 
@@ -16,9 +19,12 @@ class C45:
 		self.tree = None
 		self.indent = ""
 		self.timeStart = 0
-		self.timeEnd = 0
+		self.timeTotalFit = 0
+		self.timeTotalPredict = 0
 		self.infoGainThreshold = infoGainThreshold
 		self.gainRatio = gainRatio
+		self.y_test = []
+		self.y_pred = []
     
 	def fetchDataCSV(self):
 		with open(self.filePathToCsv, "r") as file:
@@ -110,8 +116,8 @@ class C45:
 		self.timeStart = time.time()
 		print("Generando árbol...")
 		self.tree = self.recursiveGenerateTree(self.data, self.attributes)
-		self.timeEnd = time.time()
-		print("Árbol generado en ",self.timeEnd - self.timeStart," segundos.")
+		self.timeTotalFit = time.time() - self.timeStart
+		print("Árbol generado en ",self.timeTotalFit," segundos.")
 
 	def recursiveGenerateTree(self, curData, curAttributes):
 		if len(curData) == 0:
@@ -287,37 +293,36 @@ class C45:
 		if node is None:
 			node = self.tree
 		if node.isLeaf:
-			#print(f" - Predicción para: {instance}, clase: {node.label}")
 			return node.label
 		else:
-			#print(f"Evaluando instancia: {instance}, para el nodo: {node.label}")
 			attr_index = self.attributes.index(node.label)
 			attr_value = instance[attr_index]
 			if node.threshold is None:
 				# Atributo discreto
 				for i, child in enumerate(node.children):
 					if self.attrValues[node.label][i] == attr_value:
-						#print(f"Nodo encontrado: {node.label} = {attr_value}")
-						#print(f"Siguiente nodo: {child.label}")
 						return self.predict(instance, child)
 			else:
 				# Atributo continuo
 				if float(attr_value) <= node.threshold:
-					#print(f"Nodo encontrado: {node.label} <= {node.threshold}")
 					return self.predict(instance, node.children[0])
 				else:
-					#print(f"Nodo encontrado: {node.label} > {node.threshold}")
 					return self.predict(instance, node.children[1])
 
 	def calculate_accuracy(self):
 		"""Calcula la precisión del modelo en el conjunto de prueba."""
+		self.timeStart = time.time()
 		correct_predictions_0 = 0
 		correct_predictions_1 = 0
 		total_instances_0 = 0
 		total_instances_1 = 0
+		self.y_test = []
+		self.y_pred = []
 		for instance in self.test_data:
 			actual_class = instance[-1]  # Último valor es la clase
+			self.y_test.append(actual_class)
 			predicted_class = self.predict(instance)
+			self.y_pred.append(predicted_class)
 			if actual_class == "0":
 				total_instances_0 += 1
 			else:
@@ -330,7 +335,19 @@ class C45:
 		accuracy = (correct_predictions_0+correct_predictions_1) / (total_instances_0+total_instances_1)
 		accuracy_0 = correct_predictions_0 / total_instances_0
 		accuracy_1 = correct_predictions_1 / total_instances_1
+		self.timeTotalPredict = time.time() - self.timeStart
+		print("Predicción realizada en ",self.timeTotalPredict," segundos.")
 		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1
+
+	def confusion_matrix_c45(self):
+		"""Calcula la matriz de confusión."""
+		conf_matrix = confusion_matrix(self.y_test, self.y_pred)
+		plt.figure(figsize=(8, 6))
+		sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues')
+		plt.title('Matriz de Confusión')
+		plt.xlabel('Predicción')
+		plt.ylabel('Etiqueta Real')
+		plt.show()
 
 class Node:
 	def __init__(self,isLeaf, label, threshold):
