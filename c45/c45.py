@@ -103,7 +103,9 @@ class C45:
 				else:
 					print(indent + node.label + " > " + str(node.threshold) + " : ")
 					self.printNode(rightChild , indent + "	")
-
+		else:
+			print(indent + "Class: " + node.label)
+   
 	def generateTree(self):
 		self.timeStart = time.time()
 		print("Generando árbol...")
@@ -135,11 +137,11 @@ class C45:
 					for subset in splitted:	
 						child = self.recursiveGenerateTree(subset, remainingAttributes)
 						node.children.append(child)
+					return node
 				else:
 					#return a node with the majority class
 					majClass = self.getMajClass(curData)
 					return Node(True, majClass, None)
-				return node
 
 	def getMajClass(self, curData):
 		freq = [0]*len(self.classes)

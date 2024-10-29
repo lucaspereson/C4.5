@@ -9,7 +9,7 @@ dataset = pd.read_csv("D:\IA_C45\C4.5\data\data_cardiovascular_risk.csv")
 stratify_column = dataset["TenYearCHD"]
 
 # Configurar el muestreo estratificado
-split = StratifiedShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
+split = StratifiedShuffleSplit(n_splits=1, test_size=0.3, random_state=42)
 
 # Dividir el dataset en 80% para entrenamiento y 20% para prueba
 for train_index, test_index in split.split(dataset, stratify_column):
