@@ -112,51 +112,34 @@ class C45:
 		print("Árbol generado en ",self.timeEnd - self.timeStart," segundos.")
 
 	def recursiveGenerateTree(self, curData, curAttributes):
-		self.indent += "-"
 		if len(curData) == 0:
 			#Fail
-			#print(f"{self.indent} Retorno nodo como etiqueta: Fail")
 			return Node(True, "Fail", None)
 		else:
 			allSame = self.allSameClass(curData)
 			if allSame is not False:
 				#return a node with that class
-				#print(f"{self.indent} Retorno nodo como etiqueta: ",allSame)
-				self.indent = self.indent[:-1]
 				return Node(True, allSame, None)
 			elif len(curAttributes) == 0:
 				#return a node with the majority class
 				majClass = self.getMajClass(curData)
-				#print(f"{self.indent} Retorno nodo con etiqueta de mayor clase: ",majClass)
-				self.indent = self.indent[:-1]
 				return Node(True, majClass, None)
 			else:
 				(best,best_threshold,splitted) = self.splitAttribute(curData, curAttributes)
 				remainingAttributes = curAttributes[:]
-				node = Node(False, best, best_threshold)
-				if best_threshold is None:
-					remainingAttributes.remove(best)
-				if best != -1:
-					#print(f"{self.indent} * Mejor atributo: ",best)
-					#print(f"{self.indent} Creando nodo en el árbol para: ",best)
-					indexAttr = self.attributes.index(best)	
-				node.children = []
-				self.indent += "-"
-				indexSplit = 0
-				for subset in splitted:	
-					"""if subset != []:
-						
-						if best_threshold is not None:
-							if indexSplit == 0:
-								print(f"{self.indent} Generando rama para subconjunto <={best_threshold} con {len(subset)} ejemplos.")
-								indexSplit += 1
-							else :
-								print(f"{self.indent} Generando rama para subconjunto >{best_threshold} con {len(subset)} ejemplos.")
-						else:
-							print(f"{self.indent} Generando rama para subconjunto {subset[0][indexAttr]} con {len(subset)} ejemplos.")"""
-					child = self.recursiveGenerateTree(subset, remainingAttributes)
-					node.children.append(child)
-				self.indent = self.indent[:-2]
+				if best != -1: # Hay un atributo para particionar
+					node = Node(False, best, best_threshold)
+					node.children = []
+					if best_threshold is None and best != -1: #atributo discreto
+						remainingAttributes.remove(best)
+					for subset in splitted:	
+						child = self.recursiveGenerateTree(subset, remainingAttributes)
+						node.children.append(child)
+				else:
+					#return a node with the majority class
+					majClass = self.getMajClass(curData)
+					self.indent = self.indent[:-1]
+					return Node(True, majClass, None)
 				return node
 
 	def getMajClass(self, curData):
