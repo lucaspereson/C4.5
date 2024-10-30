@@ -314,6 +314,8 @@ class C45:
 		self.timeStart = time.time()
 		correct_predictions_0 = 0
 		correct_predictions_1 = 0
+		predictions_0 = 0
+		predictions_1 = 0
 		total_instances_0 = 0
 		total_instances_1 = 0
 		self.y_test = []
@@ -323,21 +325,39 @@ class C45:
 			self.y_test.append(actual_class)
 			predicted_class = self.predict(instance)
 			self.y_pred.append(predicted_class)
-			if actual_class == "0":
+			if predicted_class == "0": # Cantidad de predicciones de 0
+				predictions_0 += 1
+			else: 					# Cantidad de predicciones de 1
+				predictions_1 += 1
+			if actual_class == "0": 	# Cantidad de instancias de 0
 				total_instances_0 += 1
-			else:
+			else: 					# Cantidad de instancias de 1
 				total_instances_1 += 1
 			if actual_class == predicted_class:
-				if actual_class == "0":
+				if actual_class == "0": # Predicción correcta de 0
 					correct_predictions_0 += 1
-				else:
+				else: 					# Predicción correcta de 1
 					correct_predictions_1 += 1
 		accuracy = (correct_predictions_0+correct_predictions_1) / (total_instances_0+total_instances_1)
-		accuracy_0 = correct_predictions_0 / total_instances_0
-		accuracy_1 = correct_predictions_1 / total_instances_1
+		if predictions_0 == 0: 
+			accuracy_0 = 0
+		else:
+			accuracy_0 = correct_predictions_0 / predictions_0
+		if predictions_1 == 0: 
+			accuracy_1 = 0
+		else:
+			accuracy_1 = correct_predictions_1 / predictions_1
+		if total_instances_0 == 0:
+			recall_0 = 0
+		else:
+  			recall_0 = correct_predictions_0 / total_instances_0
+		if total_instances_1 == 0:
+			recall_1 = 0
+		else:
+  			recall_1 = correct_predictions_1 / total_instances_1
 		self.timeTotalPredict = time.time() - self.timeStart
 		print("Predicción realizada en ",self.timeTotalPredict," segundos.")
-		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1
+		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1, recall_0, recall_1
 
 	def confusion_matrix_c45(self):
 		"""Calcula la matriz de confusión."""
