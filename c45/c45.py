@@ -14,6 +14,7 @@ class C45:
 		self.attrValues = {}
 		self.attributes = []
 		self.attributesToRemove = []
+		self.attributesToChange = []
 		self.tree = None
 		self.timeStart = 0
 		self.timeTotalFit = 0
@@ -63,6 +64,23 @@ class C45:
 			unique_values = set(row[attr_index] for row in self.data)
 			if len(unique_values) == len(self.data):
 				self.attributesToRemove.append(attr_index)
+			else:
+				if not self.isAttrDiscrete(self.attributes[attr_index]) and len(unique_values) == 2:
+					# Si el atributo es continuo y tiene solo 2 valores únicos, se convierte a discreto
+					unique_values = sorted(list(unique_values))
+					self.attributesToChange.append([attr_index, unique_values])
+							
+		for attr in self.attributesToChange:
+			attr_index = attr[0]
+			unique_values = attr[1]
+			print(f"Convirtiendo atributo continuo a discreto: {self.attributes[attr_index]}")
+			for index, row in enumerate(self.data):
+				if self.data[index][attr_index] == list(unique_values)[0]:
+					self.data[index][attr_index] = "NO ("+str(list(unique_values)[0])+")"
+				else:
+					self.data[index][attr_index] = "SI ("+str(list(unique_values)[1])+")"
+			self.attrValues[self.attributes[attr_index]] = [f"NO ({unique_values[0]})", f"SI ({unique_values[1]})"]
+			print(f"Valores de atributos actualizados: {self.attrValues}")
 
 		# Eliminar los atributos únicos de cada registro y actualizar la lista de atributos
 		for index in sorted(self.attributesToRemove, reverse=True):
@@ -73,6 +91,11 @@ class C45:
 			del self.attributes[index]
 			self.numAttributes -= 1
 		
+		for attr_index in range(self.numAttributes):
+			unique_values = set(row[attr_index] for row in self.data)
+			if len(unique_values) == len(self.data):
+				self.attributesToRemove.append(attr_index)
+  
   		# Convertir valores a float para atributos no discretos
 		for index, row in enumerate(self.data):
 			for attr_index in range(self.numAttributes):
@@ -279,7 +302,7 @@ class C45:
 		else:
 			return math.log(x,2)
 
-	def load_test_data(self, path_to_test_csv):
+	def loadDataToPredict(self, path_to_test_csv):
 		# Cargar los datos de prueba de un csv
 		self.test_data = []
 		with open(path_to_test_csv, "r") as file:
@@ -289,12 +312,43 @@ class C45:
 				if all(element.strip() for element in row):
 					self.test_data.append(row)
 
+		for attr in self.attributesToChange:
+			attr_index = attr[0]
+			unique_values = attr[1]
+			for index, row in enumerate(self.test_data):
+				if self.test_data[index][attr_index] == list(unique_values)[0]:
+					self.test_data[index][attr_index] = "NO ("+str(list(unique_values)[0])+")"
+				else:
+					self.test_data[index][attr_index] = "SI ("+str(list(unique_values)[1])+")"
+			self.attrValues[self.attributes[attr_index]] = [f"NO ({unique_values[0]})", f"SI ({unique_values[1]})"]
+   
 		# Se eliminan los atributos únicos de cada registro y se actualiza la lista de atributos, 
   		# para que al hacer la predicción recorriendo el árbol no haya errores
 		for index in sorted(self.attributesToRemove, reverse=True):
 			for row in self.test_data:
 				del row[index]
     
+	def calculateAccuracy(self, total_instances_0, total_instances_1, correct_predictions_0, correct_predictions_1, predictions_0, predictions_1):
+		# Calcular la precisión del modelo en el conjunto de prueba
+		accuracy = (correct_predictions_0+correct_predictions_1) / (total_instances_0+total_instances_1)
+		if predictions_0 == 0: 
+			accuracy_0 = 0
+		else:
+			accuracy_0 = correct_predictions_0 / predictions_0
+		if predictions_1 == 0: 
+			accuracy_1 = 0
+		else:
+			accuracy_1 = correct_predictions_1 / predictions_1
+		if total_instances_0 == 0:
+			recall_0 = 0
+		else:
+			recall_0 = correct_predictions_0 / total_instances_0
+		if total_instances_1 == 0:
+			recall_1 = 0
+		else:
+			recall_1 = correct_predictions_1 / total_instances_1
+		return accuracy, accuracy_0, accuracy_1, recall_0, recall_1
+
 	def predict(self, instance, node=None):
 		# Predice la clase de una instancia recorriendo el árbol
 		if node is None: # Comienza desde la raíz, esto solo se llama la primera vez
@@ -316,8 +370,8 @@ class C45:
 				else:
 					return self.predict(instance, node.children[1])
 
-	def calculate_accuracy(self):
-		# Calcula la precisión del modelo en el conjunto de prueba
+	def makePredictions(self):
+		# Realiza predicciones en el conjunto de prueba
 		self.timeStart = time.time()
 		correct_predictions_0 = 0
 		correct_predictions_1 = 0
@@ -345,28 +399,12 @@ class C45:
 					correct_predictions_0 += 1
 				else:                   # Predicciones correctas de 1
 					correct_predictions_1 += 1
-		accuracy = (correct_predictions_0+correct_predictions_1) / (total_instances_0+total_instances_1)
-		if predictions_0 == 0: 
-			accuracy_0 = 0
-		else:
-			accuracy_0 = correct_predictions_0 / predictions_0
-		if predictions_1 == 0: 
-			accuracy_1 = 0
-		else:
-			accuracy_1 = correct_predictions_1 / predictions_1
-		if total_instances_0 == 0:
-			recall_0 = 0
-		else:
-			recall_0 = correct_predictions_0 / total_instances_0
-		if total_instances_1 == 0:
-			recall_1 = 0
-		else:
-			recall_1 = correct_predictions_1 / total_instances_1
 		self.timeTotalPredict = time.time() - self.timeStart
 		print("Predicción realizada en ",self.timeTotalPredict," segundos.")
+		accuracy, accuracy_0, accuracy_1, recall_0, recall_1 = self.calculateAccuracy(total_instances_0, total_instances_1, correct_predictions_0, correct_predictions_1, predictions_0, predictions_1)
 		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1, recall_0, recall_1
 
-	def confusion_matrix_c45(self):
+	def confusionMatrixC45(self):
 		# Calcula la matriz de confusión
 		conf_matrix = confusion_matrix(self.y_test, self.y_pred)
 		plt.figure(figsize=(8, 6))
