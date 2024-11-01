@@ -12,6 +12,7 @@ class C45:
 		self.classes = []
 		self.numAttributes = -1 
 		self.attrValues = {}
+		self.original_attributes = []
 		self.attributes = []
 		self.attributesToRemove = []
 		self.attributesToChange = []
@@ -23,29 +24,34 @@ class C45:
 		self.gainRatio = gainRatio
 		self.y_test = []
 		self.y_pred = []
+		self.messageError = None
     
 	def fetchDataCSV(self):
-		with open(self.filePathToCsv, "r") as file:
-			reader = csv.reader(file)
-			# Lee la primera fila (nombres de atributos)
-			self.attributes = next(reader)
-			self.attributes.pop()
-			self.numAttributes = len(self.attributes)
-			print("---------------------------------")
-			print("Atributos:", self.attributes)
-			# Lee el resto de los datos
-			for row in reader:
-				if all(element.strip() for element in row):
-					self.data.append(row)
-			
-			# Inferir las clases (última columna)
-			self.classes = list(set([row[-1] for row in self.data]))
-			print("Clases:", self.classes)
+		try:
+			with open(self.filePathToCsv, "r") as file:
+				reader = csv.reader(file)
+				# Lee la primera fila (nombres de atributos)
+				self.attributes = next(reader)
+				self.attributes.pop()
+				self.numAttributes = len(self.attributes)
+				print("---------------------------------")
+				print("Atributos:", self.attributes)
+				# Lee el resto de los datos
+				for row in reader:
+					if all(element.strip() for element in row):
+						self.data.append(row)
+				
+				# Inferir las clases (última columna)
+				self.classes = list(set([row[-1] for row in self.data]))
+				print("Clases:", self.classes)
 
-			# Inferir los valores posibles de los atributos
-			self.inferAttributeValues()
-			print("Valores de atributos:", self.attrValues)
-			print("---------------------------------")
+				# Inferir los valores posibles de los atributos
+				self.inferAttributeValues()
+				print("Valores de atributos:", self.attrValues)
+				print("---------------------------------")
+		except Exception as e:
+			self.messageError = "Archivo no encontrado. Por favor, verifique la ruta del archivo CSV."
+			raise Exception(self.messageError) from e
    	
 	def inferAttributeValues(self):
 		for i in range(self.numAttributes):
@@ -69,7 +75,7 @@ class C45:
 					# Si el atributo es continuo y tiene solo 2 valores únicos, se convierte a discreto
 					unique_values = sorted(list(unique_values))
 					self.attributesToChange.append([attr_index, unique_values])
-							
+					
 		for attr in self.attributesToChange:
 			attr_index = attr[0]
 			unique_values = attr[1]
@@ -80,7 +86,8 @@ class C45:
 				else:
 					self.data[index][attr_index] = "SI ("+str(list(unique_values)[1])+")"
 			self.attrValues[self.attributes[attr_index]] = [f"NO ({unique_values[0]})", f"SI ({unique_values[1]})"]
-			print(f"Valores de atributos actualizados: {self.attrValues}")
+		print(f"Valores de atributos actualizados: {self.attrValues}")
+		print("---------------------------------")
 
 		# Eliminar los atributos únicos de cada registro y actualizar la lista de atributos
 		for index in sorted(self.attributesToRemove, reverse=True):
@@ -90,11 +97,6 @@ class C45:
 			del self.attrValues[self.attributes[index]]
 			del self.attributes[index]
 			self.numAttributes -= 1
-		
-		for attr_index in range(self.numAttributes):
-			unique_values = set(row[attr_index] for row in self.data)
-			if len(unique_values) == len(self.data):
-				self.attributesToRemove.append(attr_index)
   
   		# Convertir valores a float para atributos no discretos
 		for index, row in enumerate(self.data):
@@ -303,30 +305,38 @@ class C45:
 			return math.log(x,2)
 
 	def loadDataToPredict(self, path_to_test_csv):
-		# Cargar los datos de prueba de un csv
-		self.test_data = []
-		with open(path_to_test_csv, "r") as file:
-			reader = csv.reader(file)
-			next(reader)  # Saltar la fila de cabecera si existe ya que solo se necesita la data
-			for row in reader:
-				if all(element.strip() for element in row):
-					self.test_data.append(row)
+		try:
+			# Cargar los datos de prueba de un csv
+			self.test_data = []
+			with open(path_to_test_csv, "r") as file:
+				reader = csv.reader(file)
+				attributesTest = next(reader)  # Saltar la fila de cabecera si existe ya que solo se necesita la data
+				if attributesTest != self.attributes:
+					self.messageError = "Los atributos del conjunto de prueba no coinciden con los del conjunto de entrenamiento."
+					raise ValueError(self.messageError)
+				for row in reader:
+					if all(element.strip() for element in row):
+						self.test_data.append(row)
 
-		for attr in self.attributesToChange:
-			attr_index = attr[0]
-			unique_values = attr[1]
-			for index, row in enumerate(self.test_data):
-				if self.test_data[index][attr_index] == list(unique_values)[0]:
-					self.test_data[index][attr_index] = "NO ("+str(list(unique_values)[0])+")"
-				else:
-					self.test_data[index][attr_index] = "SI ("+str(list(unique_values)[1])+")"
-			self.attrValues[self.attributes[attr_index]] = [f"NO ({unique_values[0]})", f"SI ({unique_values[1]})"]
-   
-		# Se eliminan los atributos únicos de cada registro y se actualiza la lista de atributos, 
-  		# para que al hacer la predicción recorriendo el árbol no haya errores
-		for index in sorted(self.attributesToRemove, reverse=True):
-			for row in self.test_data:
-				del row[index]
+			for attr in self.attributesToChange:
+				attr_index = attr[0]
+				unique_values = attr[1]
+				for index, row in enumerate(self.test_data):
+					if self.test_data[index][attr_index] == list(unique_values)[0]:
+						self.test_data[index][attr_index] = "NO ("+str(list(unique_values)[0])+")"
+					else:
+						self.test_data[index][attr_index] = "SI ("+str(list(unique_values)[1])+")"
+	
+			# Se eliminan los atributos únicos de cada registro y se actualiza la lista de atributos, 
+			# para que al hacer la predicción recorriendo el árbol no haya errores
+			for index in sorted(self.attributesToRemove, reverse=True):
+				for row in self.test_data:
+					del row[index]
+     
+		except Exception as e:
+			self.messageError = "Ocurrió un error al cargar los datos de prueba."
+			raise Exception(self.messageError) from e
+
     
 	def calculateAccuracy(self, total_instances_0, total_instances_1, correct_predictions_0, correct_predictions_1, predictions_0, predictions_1):
 		# Calcular la precisión del modelo en el conjunto de prueba
@@ -371,38 +381,50 @@ class C45:
 					return self.predict(instance, node.children[1])
 
 	def makePredictions(self):
-		# Realiza predicciones en el conjunto de prueba
-		self.timeStart = time.time()
-		correct_predictions_0 = 0
-		correct_predictions_1 = 0
-		predictions_0 = 0
-		predictions_1 = 0
-		total_instances_0 = 0
-		total_instances_1 = 0
-		self.y_test = []
-		self.y_pred = []
-		for instance in self.test_data:
-			actual_class = instance[-1]  # El último valor es la clase
-			self.y_test.append(actual_class)
-			predicted_class = self.predict(instance)
-			self.y_pred.append(predicted_class)
-			if predicted_class == "0": # Cantidad de predicciones de 0
-				predictions_0 += 1
-			else:                   # Cantidad de predicciones de 1
-				predictions_1 += 1
-			if actual_class == "0":     # Cantidad de instancias de 0
-				total_instances_0 += 1
-			else:                   # Cantidad de instancias de 1
-				total_instances_1 += 1
-			if actual_class == predicted_class:
-				if actual_class == "0": # Predicciones correctas de 0
-					correct_predictions_0 += 1
-				else:                   # Predicciones correctas de 1
-					correct_predictions_1 += 1
-		self.timeTotalPredict = time.time() - self.timeStart
-		print("Predicción realizada en ",self.timeTotalPredict," segundos.")
-		accuracy, accuracy_0, accuracy_1, recall_0, recall_1 = self.calculateAccuracy(total_instances_0, total_instances_1, correct_predictions_0, correct_predictions_1, predictions_0, predictions_1)
-		return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1, recall_0, recall_1
+		try:
+			if self.tree is None:
+				self.messageError = "El árbol no ha sido generado. Por favor, genere el árbol antes de realizar predicciones."
+				raise ValueError(self.messageError)
+			# Realiza predicciones en el conjunto de prueba
+			self.timeStart = time.time()
+			correct_predictions_0 = 0
+			correct_predictions_1 = 0
+			predictions_0 = 0
+			predictions_1 = 0
+			total_instances_0 = 0
+			total_instances_1 = 0
+			self.y_test = []
+			self.y_pred = []
+			for instance in self.test_data:
+				actual_class = instance[-1]  # El último valor es la clase
+				self.y_test.append(actual_class)
+				predicted_class = self.predict(instance)
+				self.y_pred.append(predicted_class)
+				if predicted_class == "0": # Cantidad de predicciones de 0
+					predictions_0 += 1
+				else:                   # Cantidad de predicciones de 1
+					predictions_1 += 1
+				if actual_class == "0":     # Cantidad de instancias de 0
+					total_instances_0 += 1
+				else:                   # Cantidad de instancias de 1
+					total_instances_1 += 1
+				if actual_class == predicted_class:
+					if actual_class == "0": # Predicciones correctas de 0
+						correct_predictions_0 += 1
+					else:                   # Predicciones correctas de 1
+						correct_predictions_1 += 1
+			self.timeTotalPredict = time.time() - self.timeStart
+			print("Predicción realizada en ",self.timeTotalPredict," segundos.")
+			accuracy, accuracy_0, accuracy_1, recall_0, recall_1 = self.calculateAccuracy(total_instances_0, total_instances_1, correct_predictions_0, correct_predictions_1, predictions_0, predictions_1)
+			count = 0
+			for i in range(len(self.y_test)):
+				if self.y_pred[i] is None:count +=1
+			print("Cantidad de predicciones nulas: ",count)
+			return total_instances_0, total_instances_1, accuracy, accuracy_0, accuracy_1, recall_0, recall_1
+		except Exception as e:
+			if self.messageError is None:
+				self.messageError = "Ocurrió un error al realizar las predicciones."
+			raise Exception(self.messageError) from e
 
 	def confusionMatrixC45(self):
 		# Calcula la matriz de confusión
